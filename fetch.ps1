@@ -198,9 +198,14 @@ function ConvertFrom-WingetShowOutput {
             $obj['Id']   = $Matches[2].Trim()
             continue
         }
+        # Continuation lines for multi-line fields (e.g. Description)
+        if ($currentSection -eq 'MultiLine' -and $line -match '^\s{2,}(.+)$') {
+            [void]$currentValue.Add($Matches[1].Trim())
+            continue
+        }
         if ($line -match '^([A-Za-z][A-Za-z0-9\s\-]*):\s*(.*)$' -and $line -notmatch '^\s{2,}') {
             if ($currentKey -and $currentValue.Count -gt 0) {
-                $val = if ($currentValue.Count -eq 1) { $currentValue[0] } else { $currentValue.ToArray() }
+                $val = if ($currentValue.Count -eq 1) { $currentValue[0] } else { ($currentValue -join "`n") }
                 $obj[$currentKey] = $val
             }
             $key = $Matches[1].Trim() -replace '\s+', ' '
@@ -228,9 +233,12 @@ function ConvertFrom-WingetShowOutput {
                 [void]$installersList.Add($singleInstaller)
                 $obj['Installer'] = $singleInstaller
             } else {
-                $currentSection = $null
                 $normKey = & $normalizeKey $key
-                if ($normKey -and ($val -or $val -eq '')) { $obj[$normKey] = $val }
+                if ($normKey -and ($val -or $val -eq '')) {
+                    $currentKey = $normKey
+                    $currentSection = 'MultiLine'
+                    [void]$currentValue.Add($val)
+                }
             }
             continue
         }
@@ -254,7 +262,7 @@ function ConvertFrom-WingetShowOutput {
     }
 
     if ($currentKey -and $currentValue.Count -gt 0) {
-        $val = if ($currentValue.Count -eq 1) { $currentValue[0] } else { $currentValue.ToArray() }
+        $val = if ($currentValue.Count -eq 1) { $currentValue[0] } else { ($currentValue -join "`n") }
         $obj[$currentKey] = $val
     }
     if ($installersList.Count -gt 1) {
@@ -341,9 +349,13 @@ foreach ($row in $rows) {
     $parsed = ConvertFrom-WingetShowOutput -normalizedOutput $normalized
     $obj = $parsed.Obj
 
+    $descriptionRaw = $obj['Description']
+    if ($descriptionRaw -is [array]) { $descriptionRaw = $descriptionRaw -join "`n" }
+    $descriptionStr = if ($descriptionRaw) { $descriptionRaw.ToString().Trim() } else { '' }
+
     $appMetadata = [ordered]@{
         Name           = $appName
-        Description    = if ($obj['Description']) { $obj['Description'] } else { '' }
+        Description    = $descriptionStr
         Publisher      = if ($obj['Publisher']) { $obj['Publisher'] } else { '' }
         PublisherUrl   = if ($obj['PublisherUrl']) { $obj['PublisherUrl'] } else { $null }
         InformationUrl = if ($obj['PackageUrl']) { $obj['PackageUrl'] } elseif ($obj['Homepage']) { $obj['Homepage'] } else { $null }
