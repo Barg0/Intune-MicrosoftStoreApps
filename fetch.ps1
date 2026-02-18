@@ -26,19 +26,19 @@ if ($enableLogFile -and -not (Test-Path -Path $logFileDirectory)) {
 function Write-Log {
     [CmdletBinding()]
     param (
-        [string]$Message,
-        [string]$Tag = "Info"
+        [string]$message,
+        [string]$tag = "Info"
     )
 
     if (-not $log) { return }
 
-    if (($Tag -eq "Debug") -and (-not $logDebug)) { return }
-    if (($Tag -eq "Get")   -and (-not $logGet))   { return }
-    if (($Tag -eq "Run")   -and (-not $logRun))   { return }
+    if (($tag -eq "Debug") -and (-not $logDebug)) { return }
+    if (($tag -eq "Get")   -and (-not $logGet))   { return }
+    if (($tag -eq "Run")   -and (-not $logRun))   { return }
 
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $tagList   = @("Start","Get","Run","Info","Success","Error","Debug","End")
-    $rawTag    = $Tag.Trim()
+    $rawTag    = $tag.Trim()
 
     if ($tagList -contains $rawTag) {
         $rawTag = $rawTag.PadRight(7)
@@ -59,7 +59,7 @@ function Write-Log {
         default   { "White" }
     }
 
-    $logMessage = "$timestamp [  $rawTag ] $Message"
+    $logMessage = "$timestamp [  $rawTag ] $message"
 
     if ($enableLogFile) {
         try {
@@ -74,21 +74,21 @@ function Write-Log {
     Write-Host "[  " -NoNewline -ForegroundColor White
     Write-Host "$rawTag" -NoNewline -ForegroundColor $color
     Write-Host " ] " -NoNewline -ForegroundColor White
-    Write-Host "$Message"
+    Write-Host "$message"
 }
 
 # ---------------------------[ Exit Function ]---------------------------
 function Complete-Script {
-    param([int]$ExitCode)
+    param([int]$exitCode)
 
     $scriptEndTime = Get-Date
     $duration      = $scriptEndTime - $scriptStartTime
 
-    Write-Log "Script execution time: $($duration.ToString('hh\:mm\:ss\.ff'))" -Tag "Info"
-    Write-Log "Exit Code: $ExitCode" -Tag "Info"
-    Write-Log "======== Script Completed ========" -Tag "End"
+    Write-Log "Script execution time: $($duration.ToString('hh\:mm\:ss\.ff'))" -tag "Info"
+    Write-Log "Exit Code: $exitCode" -tag "Info"
+    Write-Log "======== Script Completed ========" -tag "End"
 
-    exit $ExitCode
+    exit $exitCode
 }
 
 # ---------------------------[ Files and Folders ]---------------------------
@@ -99,19 +99,19 @@ $metadataDir  = Join-Path $rootDir 'metadata'
 # ---------------------------[ Winget Localization ]---------------------------
 function ConvertFrom-WingetLocalizedOutput {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] [string]$RawOutput)
+    param([Parameter(Mandatory)] [string]$rawOutput)
 
     $langPath = Join-Path (Join-Path $PSScriptRoot 'jsons') 'language.json'
     if (-not (Test-Path -LiteralPath $langPath)) {
-        Write-Log "language.json not found, using raw output" -Tag "Debug"
-        return $RawOutput
+        Write-Log "language.json not found, using raw output" -tag "Debug"
+        return $rawOutput
     }
 
     try {
         $lang = Get-Content -LiteralPath $langPath -Raw -Encoding UTF8 | ConvertFrom-Json
     } catch {
-        Write-Log "Failed to load language.json: $($_.Exception.Message)" -Tag "Debug"
-        return $RawOutput
+        Write-Log "Failed to load language.json: $($_.Exception.Message)" -tag "Debug"
+        return $rawOutput
     }
 
     $culture = [System.Globalization.CultureInfo]::CurrentUICulture.Name
@@ -124,12 +124,12 @@ function ConvertFrom-WingetLocalizedOutput {
     }
 
     if (-not $localeKey) {
-        Write-Log "No locale mapping for '$culture', using raw output" -Tag "Debug"
-        return $RawOutput
+        Write-Log "No locale mapping for '$culture', using raw output" -tag "Debug"
+        return $rawOutput
     }
 
     $locale = $lang.locales.$localeKey
-    $result = $RawOutput
+    $result = $rawOutput
 
     $noPkgPatterns = @($lang.english.noPackageSubstrings)
     if ($locale.noPackageSubstrings -and $locale.noPackageSubstrings.Count -gt 0) {
@@ -165,8 +165,8 @@ function ConvertFrom-WingetLocalizedOutput {
 
 # ---------------------------[ Winget Show ]---------------------------
 function Invoke-WingetShowRaw {
-    param([string]$WingetId)
-    $wingetArgs = @('show', '--id', $WingetId)
+    param([string]$wingetId)
+    $wingetArgs = @('show', '--id', $wingetId)
     $prevEnc = [Console]::OutputEncoding
     [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
     try {
@@ -179,11 +179,11 @@ function Invoke-WingetShowRaw {
 
 # ---------------------------[ Parse Winget Show Output ]---------------------------
 function ConvertFrom-WingetShowOutput {
-    param([string]$NormalizedOutput)
+    param([string]$normalizedOutput)
     $result = @{ Obj = [ordered]@{ }; HasInstaller = $false }
-    if ([string]::IsNullOrWhiteSpace($NormalizedOutput)) { return $result }
+    if ([string]::IsNullOrWhiteSpace($normalizedOutput)) { return $result }
 
-    $lines = $NormalizedOutput -split "`r?`n"
+    $lines = $normalizedOutput -split "`r?`n"
     $obj   = [ordered]@{ }
     $currentKey = $null
     $currentValue = [System.Collections.ArrayList]::new()
@@ -267,82 +267,82 @@ function ConvertFrom-WingetShowOutput {
 }
 
 # ---------------------------[ Script Start ]---------------------------
-Write-Log "======== Script Started ========" -Tag "Start"
-Write-Log "ComputerName: $env:COMPUTERNAME | User: $env:USERNAME | Script: $scriptName" -Tag "Info"
+Write-Log "======== Script Started ========" -tag "Start"
+Write-Log "ComputerName: $env:COMPUTERNAME | User: $env:USERNAME | Script: $scriptName" -tag "Info"
 
 if (-not (Test-Path -LiteralPath $csvPath)) {
-    Write-Log "CSV file not found: $csvPath" -Tag "Error"
-    Complete-Script -ExitCode 1
+    Write-Log "CSV file not found: $csvPath" -tag "Error"
+    Complete-Script -exitCode 1
 }
 
-Write-Log "Loading CSV from: $csvPath" -Tag "Get"
+Write-Log "Loading CSV from: $csvPath" -tag "Get"
 try {
     $rows = Import-Csv -LiteralPath $csvPath -Delimiter ','
-    Write-Log "CSV loaded: $($rows.Count) row(s)" -Tag "Debug"
+    Write-Log "CSV loaded: $($rows.Count) row(s)" -tag "Debug"
 } catch {
-    Write-Log "Failed to read CSV: $($_.Exception.Message)" -Tag "Error"
-    Complete-Script -ExitCode 1
+    Write-Log "Failed to read CSV: $($_.Exception.Message)" -tag "Error"
+    Complete-Script -exitCode 1
 }
 
 if (-not $rows -or $rows.Count -eq 0) {
-    Write-Log 'CSV contains no rows.' -Tag 'Error'
-    Complete-Script -ExitCode 1
+    Write-Log 'CSV contains no rows.' -tag 'Error'
+    Complete-Script -exitCode 1
 }
 
 # Ensure metadata directory exists
 if (-not (Test-Path -Path $metadataDir)) {
     New-Item -ItemType Directory -Path $metadataDir -Force | Out-Null
-    Write-Log "Created metadata directory: $metadataDir" -Tag "Info"
+    Write-Log "Created metadata directory: $metadataDir" -tag "Info"
 }
 
 $existingCount = @(Get-ChildItem -Path $metadataDir -Filter '*.json' -File -ErrorAction SilentlyContinue).Count
-Write-Log "Metadata folder contains $existingCount existing file(s)" -Tag "Get"
+Write-Log "Metadata folder contains $existingCount existing file(s)" -tag "Get"
 
 $totalApps   = $rows.Count
 $fetchedCount = 0
 $skippedCount = 0
 $failedCount  = 0
 
-Write-Log "Fetching metadata for $totalApps app(s)" -Tag "Info"
+Write-Log "Fetching metadata for $totalApps app(s)" -tag "Info"
 
 foreach ($row in $rows) {
     $appName = ($row.ApplicationName).ToString().Trim()
     $storeId = ($row.StoreId).ToString().Trim()
 
     if ([string]::IsNullOrWhiteSpace($appName) -or [string]::IsNullOrWhiteSpace($storeId)) {
-        Write-Log 'Skipping row with missing ApplicationName or StoreId.' -Tag 'Error'
+        Write-Log 'Skipping row with missing ApplicationName or StoreId.' -tag 'Error'
         $failedCount++
         continue
     }
 
     $metadataFile = Join-Path $metadataDir "$storeId.json"
     if (Test-Path -LiteralPath $metadataFile) {
-        Write-Log "Skipped (already fetched): $appName ($storeId)" -Tag "Info"
+        Write-Log "Skipped (already fetched): $appName ($storeId)" -tag "Info"
         $skippedCount++
         continue
     }
 
-    Write-Log "Fetching: $appName ($storeId)" -Tag "Get"
+    Write-Log "Fetching: $appName ($storeId)" -tag "Get"
 
-    $run = Invoke-WingetShowRaw -WingetId $storeId
+    $run = Invoke-WingetShowRaw -wingetId $storeId
     if ($run.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($run.Output)) {
-        Write-Log "winget show returned no output for '$storeId' (exit: $($run.ExitCode))" -Tag "Error"
+        Write-Log "winget show returned no output for '$storeId' (exit: $($run.ExitCode))" -tag "Error"
         $failedCount++
         continue
     }
 
-    $normalized = ConvertFrom-WingetLocalizedOutput -RawOutput $run.Output
+    $normalized = ConvertFrom-WingetLocalizedOutput -rawOutput $run.Output
     if ($null -eq $normalized -or $normalized -match 'No package found|No applicable package|No applicable installer') {
-        Write-Log "No package found for '$storeId'" -Tag "Error"
+        Write-Log "No package found for '$storeId'" -tag "Error"
         $failedCount++
         continue
     }
 
-    $parsed = ConvertFrom-WingetShowOutput -NormalizedOutput $normalized
+    $parsed = ConvertFrom-WingetShowOutput -normalizedOutput $normalized
     $obj = $parsed.Obj
 
     $appMetadata = [ordered]@{
-        Name           = if ($obj['Name']) { $obj['Name'] } else { $appName }
+        Name           = $appName
         Description    = if ($obj['Description']) { $obj['Description'] } else { '' }
         Publisher      = if ($obj['Publisher']) { $obj['Publisher'] } else { '' }
         PublisherUrl   = if ($obj['PublisherUrl']) { $obj['PublisherUrl'] } else { $null }
@@ -353,19 +353,19 @@ foreach ($row in $rows) {
 
     try {
         $appMetadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $metadataFile -Encoding UTF8
-        Write-Log "Saved: $metadataFile" -Tag "Success"
+        Write-Log "Saved: $metadataFile" -tag "Success"
     } catch {
-        Write-Log "Failed to write $($metadataFile): $($_.Exception.Message)" -Tag "Error"
+        Write-Log "Failed to write $($metadataFile): $($_.Exception.Message)" -tag "Error"
         $failedCount++
         continue
     }
 
-    Write-Log "Fetched: $appName | Publisher='$($appMetadata.Publisher)'" -Tag "Success"
+    Write-Log "Fetched: $appName | Publisher='$($appMetadata.Publisher)'" -tag "Success"
     $fetchedCount++
 }
 
 $totalMetadata = @(Get-ChildItem -Path $metadataDir -Filter '*.json' -File -ErrorAction SilentlyContinue).Count
-Write-Log "Metadata folder contains $totalMetadata total file(s)" -Tag "Success"
+Write-Log "Metadata folder contains $totalMetadata total file(s)" -tag "Success"
 
-Write-Log "Fetch summary: $fetchedCount fetched, $skippedCount skipped, $failedCount failed (total: $totalApps)" -Tag "Info"
-Complete-Script -ExitCode $(if ($failedCount -gt 0) { 1 } else { 0 })
+Write-Log "Fetch summary: $fetchedCount fetched, $skippedCount skipped, $failedCount failed (total: $totalApps)" -tag "Info"
+Complete-Script -exitCode $(if ($failedCount -gt 0) { 1 } else { 0 })
