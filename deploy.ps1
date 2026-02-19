@@ -238,12 +238,15 @@ function New-WinGetAppBody {
 
     $runAsAccount = if ($installContext -eq 'user') { 'User' } else { 'System' }
 
+    if ($informationUrl -and $informationUrl -notmatch '^https?://') { $informationUrl = "https://$informationUrl" }
+    if ($privacyUrl -and $privacyUrl -notmatch '^https?://') { $privacyUrl = "https://$privacyUrl" }
+
     $appBody = @{
         '@odata.type'         = '#microsoft.graph.winGetApp'
         displayName           = $displayName
         description           = $description
         publisher             = $publisher
-        developer             = $publisher
+        developer             = if ($Publisher -eq 'Microsoft Corporation') { 'Microsoft' } else { $Publisher }
         owner                 = $owner
         notes                 = $notes
         packageIdentifier     = $packageIdentifier
@@ -420,10 +423,25 @@ function Deploy-StoreApp {
         Write-Log "Created app id: $createdAppId" -tag "Success"
 
         if ($enableGroupCreation -and -not (Test-AppGroupBlacklisted -storeId $storeId)) {
-            try {
-                Set-AppGroupAssignments -appId $createdAppId -displayName $appName
-            } catch {
-                Write-Log "Group creation/assignment failed (non-fatal): $_" -tag "Error"
+            $assignMaxRetries = 3
+            $assignDelaySec   = 10
+            $assignDone       = $false
+            for ($attempt = 1; $attempt -le $assignMaxRetries; $attempt++) {
+                try {
+                    Set-AppGroupAssignments -appId $createdAppId -displayName $appName
+                    $assignDone = $true
+                    break
+                } catch {
+                    $errMsg = $_.Exception.Message
+                    $isPublishState = $errMsg -match "PublishingState is not 'Published'"
+                    if ($isPublishState -and $attempt -lt $assignMaxRetries) {
+                        Write-Log "App not yet published, retrying in ${assignDelaySec}s (attempt $attempt/$assignMaxRetries)..." -tag "Info"
+                        Start-Sleep -Seconds $assignDelaySec
+                    } else {
+                        Write-Log "Group creation/assignment failed (non-fatal): $errMsg" -tag "Error"
+                        break
+                    }
+                }
             }
         } elseif ($enableGroupCreation -and (Test-AppGroupBlacklisted -storeId $storeId)) {
             Write-Log "Skipping group creation (app on blacklist): $appName ($storeId)" -tag "Info"

@@ -274,6 +274,16 @@ function ConvertFrom-WingetShowOutput {
     return @{ Obj = $obj; HasInstaller = $hasInstaller }
 }
 
+# ---------------------------[ URL Sanitization ]---------------------------
+function Resolve-Url {
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+    $Value = $Value.Trim()
+    if ($Value -match '^https?://') { return $Value }
+    if ($Value -match '[\w.-]+\.\w{2,}') { return "https://$Value" }
+    return $null
+}
+
 # ---------------------------[ Script Start ]---------------------------
 Write-Log "======== Script Started ========" -tag "Start"
 Write-Log "ComputerName: $env:COMPUTERNAME | User: $env:USERNAME | Script: $scriptName" -tag "Info"
@@ -357,9 +367,9 @@ foreach ($row in $rows) {
         Name           = $appName
         Description    = $descriptionStr
         Publisher      = if ($obj['Publisher']) { $obj['Publisher'] } else { '' }
-        PublisherUrl   = if ($obj['PublisherUrl']) { $obj['PublisherUrl'] } else { $null }
-        InformationUrl = if ($obj['PackageUrl']) { $obj['PackageUrl'] } elseif ($obj['Homepage']) { $obj['Homepage'] } else { $null }
-        PrivacyUrl     = if ($obj['PrivacyUrl']) { $obj['PrivacyUrl'] } else { $null }
+        PublisherUrl   = Resolve-Url $(if ($obj['PublisherUrl']) { $obj['PublisherUrl'] } else { $null })
+        InformationUrl = Resolve-Url $(if ($obj['PackageUrl']) { $obj['PackageUrl'] } elseif ($obj['Homepage']) { $obj['Homepage'] } else { $null })
+        PrivacyUrl     = Resolve-Url $(if ($obj['PrivacyUrl']) { $obj['PrivacyUrl'] } else { $null })
         FetchedAt      = (Get-Date -Format 'o')
     }
 
